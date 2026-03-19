@@ -1,7 +1,6 @@
 package main
 
 import (
-
 	"log"
 	"net/http"
 	"sync/atomic"
@@ -22,7 +21,7 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 func main() {
 	const filepathRoot = "."
 	const port = "8080"
-	
+
 	mux := http.NewServeMux()
 
 	fileServer := http.FileServer(http.Dir(filepathRoot))
@@ -31,13 +30,12 @@ func main() {
 
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", fileServer)))
 
-	mux.HandleFunc("/healthz", handlerReadiness)
-	mux.HandleFunc("/metrics", apiCfg.handlerMetrics)
-	mux.HandleFunc("/reset", apiCfg.handlerReset)
+	mux.HandleFunc("GET /healthz", handlerReadiness)
+	mux.HandleFunc("GET /metrics", apiCfg.handlerMetrics)
+	mux.HandleFunc("POST /reset", apiCfg.handlerReset)
 
-
-	server := &http.Server {
-		Addr: ":" + port,
+	server := &http.Server{
+		Addr:    ":" + port,
 		Handler: mux,
 	}
 
@@ -45,14 +43,3 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 
 }
-
-
-
-
-
-
-
-
-
-
-
