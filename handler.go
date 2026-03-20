@@ -48,7 +48,7 @@ func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError,"Something went wrong")
+		respondWithError(w, http.StatusBadRequest,"Something went wrong")
 		return
 	}
 
@@ -57,9 +57,12 @@ func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
 		return 
 	}
 	type returnVals struct {
-		Valid bool `json:"valid"`
+		CleanedBody string `json:"cleaned_body"`
 	}
-	respondWithJSON(w, 200, returnVals{Valid: true})
+
+	cleaned := filterWords(params.Message)
+
+	respondWithJSON(w, 200, returnVals{CleanedBody: cleaned})
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {
