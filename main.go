@@ -1,13 +1,20 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
+	"os"
 	"sync/atomic"
+
+	"github.com/joho/godotenv"
+	"github.com/jonasyke/chirpy/internal/database"
+	_ "github.com/lib/pq"
 )
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	DB	 *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -19,14 +26,26 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 func main() {
+	godotenv.Load()
 	const filepathRoot = "."
 	const port = "8080"
+	
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		log.Fatalf("Could not load database: %v", err)
+	}
+
+	dbQueries := database.New(db)
+	
 
 	mux := http.NewServeMux()
 
 	fileServer := http.FileServer(http.Dir(filepathRoot))
 
-	apiCfg := apiConfig{}
+	apiCfg := apiConfig{
+		DB: dbQueries,
+	}
 
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", fileServer)))
 
