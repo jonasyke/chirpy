@@ -4,6 +4,9 @@ GET http://localhost:8080/api/healthz
 ### Metrics Check
 GET http://localhost:8080/admin/metrics
 
+### Reset
+curl -X POST http://localhost:8080/admin/reset
+
 ### Validate Chirp 200
 curl -X POST http://localhost:8080/api/validate_chirp \
   -H "Content-Type: application/json" \
@@ -21,4 +24,12 @@ curl -X POST http://localhost:8080/api/validate_chirp \
     -H "Content-Type: application/json" \
     -d '{
   "body": "I really need a kerfuffle to go to bed sooner, Fornax !"
+}'
+
+### Create User
+
+curl -X POST http://localhost:8080/api/users \
+  -H "Content-Type: application/json" \
+  -d '{
+  "email": "dackjorsey@example.co"
 }'

@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"github.com/jonasyke/chirpy/internal/database"
 	_ "github.com/lib/pq"
@@ -14,7 +16,8 @@ import (
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
-	DB	 *database.Queries
+	db	 *database.Queries
+	platform string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -23,6 +26,13 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 
+}
+
+type User struct {
+	ID uuid.UUID `json:"id"`
+	Created_at time.Time `json:"created_at"`
+	Updated_at time.Time `json:"updated_at"`
+	Email string `json:"email"`
 }
 
 func main() {
@@ -43,8 +53,15 @@ func main() {
 
 	fileServer := http.FileServer(http.Dir(filepathRoot))
 
+	platform := os.Getenv("PLATFORM")
+	if platform == "" {
+		log.Fatal("PLATFORM must be set")
+	}
+
 	apiCfg := apiConfig{
-		DB: dbQueries,
+		fileserverHits: atomic.Int32{},
+		db: dbQueries,
+		platform: platform,
 	}
 
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", fileServer)))
@@ -53,6 +70,7 @@ func main() {
 	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValidate)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
+	mux.HandleFunc("POST /api/users", apiCfg.handlerUsersCreate)
 
 	server := &http.Server{
 		Addr:    ":" + port,

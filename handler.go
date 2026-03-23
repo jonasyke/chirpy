@@ -32,6 +32,16 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+	if cfg.platform != "dev" {
+		respondWithError(w, 403, "You do not have the credentials")
+		return
+	}
+	err := cfg.db.ResetUser(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "could not reset users")
+		return
+	}
+
 	cfg.fileserverHits.Store(0)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -48,7 +58,7 @@ func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest,"Something went wrong")
+		respondWithError(w, http.StatusBadRequest,"Something went wrong in Validation")
 		return
 	}
 
@@ -63,6 +73,35 @@ func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
 	cleaned := filterWords(params.Message)
 
 	respondWithJSON(w, 200, returnVals{CleanedBody: cleaned})
+}
+
+func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Something went wrong in User Creation")
+		return
+	}
+
+	user, err := cfg.db.CreateUser(r.Context(), params.Email)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Could not Create User")
+		return
+	}
+
+	respondWithJSON(w, 201, User{
+		ID: user.ID,
+		Created_at: user.CreatedAt,
+		Updated_at: user.UpdatedAt,
+		Email: user.Email,
+	})
+
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {
