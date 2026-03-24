@@ -16,8 +16,8 @@ import (
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
-	db	 *database.Queries
-	platform string
+	db             *database.Queries
+	platform       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -29,17 +29,17 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 }
 
 type User struct {
-	ID uuid.UUID `json:"id"`
+	ID         uuid.UUID `json:"id"`
 	Created_at time.Time `json:"created_at"`
 	Updated_at time.Time `json:"updated_at"`
-	Email string `json:"email"`
+	Email      string    `json:"email"`
 }
 
 func main() {
 	godotenv.Load()
 	const filepathRoot = "."
 	const port = "8080"
-	
+
 	dbURL := os.Getenv("DB_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -47,7 +47,6 @@ func main() {
 	}
 
 	dbQueries := database.New(db)
-	
 
 	mux := http.NewServeMux()
 
@@ -60,8 +59,8 @@ func main() {
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
-		db: dbQueries,
-		platform: platform,
+		db:             dbQueries,
+		platform:       platform,
 	}
 
 	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", fileServer)))
@@ -71,6 +70,7 @@ func main() {
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 	mux.HandleFunc("POST /api/users", apiCfg.handlerUsersCreate)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirps)
 
 	server := &http.Server{
 		Addr:    ":" + port,

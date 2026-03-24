@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jonasyke/chirpy/internal/database"
 )
 
 func handlerReadiness(w http.ResponseWriter, r *http.Request) {
@@ -62,15 +66,15 @@ func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(params.Message) > 140 {
-		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
-		return 
+	cleaned, err := validateChirp(params.Message)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, err.Error())
+		return
 	}
+
 	type returnVals struct {
 		CleanedBody string `json:"cleaned_body"`
 	}
-
-	cleaned := filterWords(params.Message)
 
 	respondWithJSON(w, 200, returnVals{CleanedBody: cleaned})
 }
@@ -101,6 +105,53 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 		Updated_at: user.UpdatedAt,
 		Email: user.Email,
 	})
+
+}
+
+func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Body string `json:"body"`
+		User_id uuid.UUID `json:"user_id"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "problem when decoding chirp")
+		return
+	}
+
+	validated, err := validateChirp(params.Body)
+	if err != nil {
+		respondWithError(w, 406, err.Error())
+		return
+	}
+
+	chirp, err:= cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
+		Body: validated,
+		UserID: params.User_id,
+	})
+	if err != nil {
+		respondWithError(w, 406, "Could not create chirp")
+		return
+	}
+
+	type chirpResponse struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+	respondWithJSON(w, 201, chirpResponse{
+		ID: chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body: chirp.Body,
+		UserID: chirp.UserID,
+	}) 
 
 }
 

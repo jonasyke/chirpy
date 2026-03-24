@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"strings"
+
 )
 
 func filterWords(text string) string {
@@ -24,4 +26,14 @@ func filterWords(text string) string {
 		}
 	}
 	return strings.Join(cleanedWords, " ")
+}
+
+func validateChirp(body string) (string, error) {
+	if len(body) > 140 {
+		return "", fmt.Errorf("chirp is too long")
+	}
+
+	cleaned := filterWords(body)
+
+	return cleaned, nil
 }
