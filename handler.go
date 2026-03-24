@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jonasyke/chirpy/internal/database"
@@ -62,7 +61,7 @@ func (cfg *apiConfig) handlerValidate(w http.ResponseWriter, r *http.Request) {
 	params := parameters{}
 	err := decoder.Decode(&params)
 	if err != nil {
-		respondWithError(w, http.StatusBadRequest,"Something went wrong in Validation")
+		respondWithError(w, http.StatusBadRequest, "Something went wrong in Validation")
 		return
 	}
 
@@ -100,17 +99,17 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 	}
 
 	respondWithJSON(w, 201, User{
-		ID: user.ID,
+		ID:         user.ID,
 		Created_at: user.CreatedAt,
 		Updated_at: user.UpdatedAt,
-		Email: user.Email,
+		Email:      user.Email,
 	})
 
 }
 
-func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Body string `json:"body"`
+		Body    string    `json:"body"`
 		User_id uuid.UUID `json:"user_id"`
 	}
 
@@ -128,8 +127,8 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chirp, err:= cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
-		Body: validated,
+	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
+		Body:   validated,
 		UserID: params.User_id,
 	})
 	if err != nil {
@@ -137,22 +136,58 @@ func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type chirpResponse struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Body      string    `json:"body"`
-	UserID    uuid.UUID `json:"user_id"`
+	respondWithJSON(w, 201, chirpResponse{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	})
+
 }
 
-	respondWithJSON(w, 201, chirpResponse{
+func (cfg *apiConfig) handlerChirpsRetrieve(w http.ResponseWriter, r *http.Request) {
+
+	processedChirps := []chirpResponse{}
+
+	bulkChrips, err := cfg.db.GetChirps(r.Context())
+	if err != nil {
+		respondWithError(w, 500, "Could not retrieve chirps")
+		return
+	}
+
+	for _, chirp := range bulkChrips {
+		processedChirps = append(processedChirps, chirpResponse{
+			ID:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserID:    chirp.UserID,
+		})
+	}
+	respondWithJSON(w, 200, processedChirps)
+}
+
+func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
+	chirpID := r.PathValue("chirpID")
+	parsedID, err := uuid.Parse(chirpID)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "could not find chirp")
+		return
+	}
+	
+	chirp, err := cfg.db.GetChirp(r.Context(), parsedID)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "could not find retrieve chirp")
+		return
+	}
+	respondWithJSON(w, http.StatusOK, chirpResponse{
 		ID: chirp.ID,
 		CreatedAt: chirp.CreatedAt,
 		UpdatedAt: chirp.UpdatedAt,
 		Body: chirp.Body,
 		UserID: chirp.UserID,
-	}) 
-
+	})
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {
@@ -162,8 +197,7 @@ func respondWithError(w http.ResponseWriter, code int, msg string) {
 	respondWithJSON(w, code, errorResponse{Error: msg})
 }
 
-
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}){
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	if payload == nil {
 		return
 	}
@@ -178,7 +212,3 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}){
 	w.WriteHeader(code)
 	w.Write(data)
 }
-
-
-
-
