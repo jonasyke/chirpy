@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jonasyke/chirpy/internal/auth"
@@ -201,6 +202,14 @@ func (cfg *apiConfig) handlerChirpsGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
+	type loginResponse struct {
+		ID uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email string `json:"email"`
+		Token string `json:"token"`
+	}
+	
 	type parameters struct {
 		Email string `json:"email"`
 		Password string `json:"password"`
@@ -230,6 +239,8 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	
+
 	respondWithJSON(w, 200, User{
 		ID: user.ID,
 		Created_at: user.CreatedAt,
