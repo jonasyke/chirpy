@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"net/http"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -109,7 +110,6 @@ func TestMakeJWT(t *testing.T) {
 		t.Fatal("expected non-empty token string")
 	}
 
-	// Verify the token is valid and contains correct claims
 	parsedToken, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
@@ -199,6 +199,109 @@ func TestValidateJWT(t *testing.T) {
 			_, err := ValidateJWT(tt.tokenString, tt.secret)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidateJWT() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestGetBearerToken(t *testing.T) {
+	tests := []struct {
+		name        string
+		authHeader  string
+		wantToken   string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:       "valid Bearer token - standard case",
+			authHeader: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+			wantToken:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+			wantErr:    false,
+		},
+		{
+			name:       "invalid Bearer token - lowercase bearer",
+			authHeader: "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+			wantToken:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+			wantErr:    true,
+		},
+		{
+			name:       "invalid Bearer token - mixed case",
+			authHeader: "BeArEr eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+			wantToken:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+			wantErr:    true,
+		},
+		{
+			name:       "valid with extra whitespace",
+			authHeader: "  Bearer   eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...  ",
+			wantToken:  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+			wantErr:    true,
+		},
+		{
+			name:        "missing Authorization header",
+			authHeader:  "",
+			wantToken:   "",
+			wantErr:     true,
+			errContains: "authorization header not found",
+		},
+		{
+			name:        "malformed - only one part",
+			authHeader:  "Bearer",
+			wantToken:   "",
+			wantErr:     true,
+			errContains: "malformed authorization header",
+		},
+		{
+			name:        "malformed - three parts",
+			authHeader:  "Bearer token extra",
+			wantToken:   "",
+			wantErr:     true,
+			errContains: "malformed authorization header",
+		},
+		{
+			name:        "wrong scheme - Basic auth",
+			authHeader:  "Basic dXNlcjpwYXNz",
+			wantToken:   "",
+			wantErr:     true,
+			errContains: "malformed authorization header",
+		},
+		{
+			name:        "wrong scheme - no space",
+			authHeader:  "BearereyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+			wantToken:   "",
+			wantErr:     true,
+			errContains: "malformed authorization header",
+		},
+		{
+			name:        "empty token",
+			authHeader:  "Bearer ",
+			wantToken:   "",
+			wantErr:     true,
+			errContains: "malformed authorization header",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			headers := http.Header{}
+			if tt.authHeader != "" {
+				headers.Set("Authorization", tt.authHeader)
+			}
+
+			gotToken, err := GetBearerToken(headers)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("expected error, got nil")
+				} else if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("expected error containing %q, got %q", tt.errContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if gotToken != tt.wantToken {
+					t.Errorf("got token %q, want %q", gotToken, tt.wantToken)
+				}
 			}
 		})
 	}

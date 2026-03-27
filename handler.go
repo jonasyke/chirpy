@@ -121,12 +121,23 @@ func (cfg *apiConfig) handlerUsersCreate(w http.ResponseWriter, r *http.Request)
 func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body    string    `json:"body"`
-		User_id uuid.UUID `json:"user_id"`
+	}
+
+		token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, 401, "unauthorized")
+		return
+	}
+
+	validID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, 401, "unauthorized")
+		return
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "problem when decoding chirp")
 		return
@@ -140,7 +151,7 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 
 	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   validated,
-		UserID: params.User_id,
+		UserID: validID,
 	})
 	if err != nil {
 		respondWithError(w, 406, "Could not create chirp")
@@ -238,14 +249,18 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password")
 		return
 	}
-	
-	
 
-	respondWithJSON(w, 200, User{
+	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, time.Hour)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "failed to verify access")
+	}
+
+	respondWithJSON(w, 200, loginResponse{
 		ID: user.ID,
-		Created_at: user.CreatedAt,
-		Updated_at: user.UpdatedAt,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
 		Email: user.Email,
+		Token: token,
 	})
 
 }
