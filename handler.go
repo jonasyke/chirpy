@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -172,16 +173,29 @@ func (cfg *apiConfig) handlerChirpsCreate(w http.ResponseWriter, r *http.Request
 }
 
 func (cfg *apiConfig) handlerChirpsRetrieve(w http.ResponseWriter, r *http.Request) {
+	authIDString := r.URL.Query().Get("author_id")
+	sortOrder := r.URL.Query().Get("sort")
 
-	processedChirps := []chirpResponse{}
+	var bulkChirps []database.Chirp
+	var err error
 
-	bulkChrips, err := cfg.db.GetChirps(r.Context())
+	if authIDString == "" {
+		bulkChirps, err = cfg.db.GetChirps(r.Context())
+	} else {
+		authID, parseErr := uuid.Parse(authIDString)
+		if parseErr != nil {
+			respondWithError(w, 400, "Invalid Author ID")
+			return
+		}
+		bulkChirps, err = cfg.db.GetChirpsByAuthor(r.Context(), authID)
+	}
 	if err != nil {
 		respondWithError(w, 500, "Could not retrieve chirps")
 		return
 	}
 
-	for _, chirp := range bulkChrips {
+	processedChirps := make([]chirpResponse, 0, len(bulkChirps))
+	for _, chirp := range bulkChirps {
 		processedChirps = append(processedChirps, chirpResponse{
 			ID:        chirp.ID,
 			CreatedAt: chirp.CreatedAt,
@@ -190,6 +204,13 @@ func (cfg *apiConfig) handlerChirpsRetrieve(w http.ResponseWriter, r *http.Reque
 			UserID:    chirp.UserID,
 		})
 	}
+
+	if sortOrder == "desc" {
+		sort.Slice(processedChirps, func(i, j int) bool {
+			return processedChirps[i].CreatedAt.After(processedChirps[j].CreatedAt)
+		})
+	}
+
 	respondWithJSON(w, 200, processedChirps)
 }
 
@@ -426,9 +447,20 @@ func (cfg *apiConfig) handlerRedUpgrade(w http.ResponseWriter, r *http.Request) 
 		} `json:"data"`
 	}
 
+	authKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, 401, err.Error())
+		return
+	}
+
+	if authKey != cfg.polkaKey {
+		respondWithError(w, 401, "Authorization Invalid")
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	resp := response{}
-	err := decoder.Decode(&resp)
+	err = decoder.Decode(&resp)
 	if err != nil {
 		w.WriteHeader(400)
 		return
